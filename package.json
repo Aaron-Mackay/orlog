@@ -20,6 +20,7 @@
   "homepage": "https://github.com/Aaron-Mackay/orlog#readme",
   "dependencies": {
     "inquirer": "^7.3.3",
+    "inquirer-promise": "^1.0.0",
     "lodash": "^4.17.20"
   },
   "devDependencies": {
