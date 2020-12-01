@@ -12,7 +12,52 @@ class Round {
         this.currPlayerIndex = (this.currPlayerIndex + 1) % 2;
     }
 
-    resolve() {
+    async resolveHealth(currPlayer, currPlayerDice, otherPlayer, otherPlayerDice) {
+        // damage is calculated. First damage done by first player, then other way
+        let otherPlayerArrDmg = currPlayerDice.filter(x => x === "arrow").length - otherPlayerDice.filter(x => x === "shield").length
+        let otherPlayerAxeDmg = currPlayerDice.filter(x => x === "axe").length - otherPlayerDice.filter(x => x === "helmet").length
+        let otherPlayerDmg = Math.max(0, otherPlayerAxeDmg) + Math.max(0, otherPlayerArrDmg);
+        otherPlayer.health -= Math.max(0, otherPlayerDmg)
+
+        if (otherPlayer.health <= 0) {
+            const winner = await this.win(currPlayer);
+            console.log("inresolvehealth");
+            return true;
+        }
+
+        let currPlayerArrDmg = otherPlayerDice.filter(x => x === "arrow").length - currPlayerDice.filter(x => x === "shield").length
+        let currPlayerAxeDmg = otherPlayerDice.filter(x => x === "axe").length - currPlayerDice.filter(x => x === "helmet").length
+        let currPlayerDmg = Math.max(0, currPlayerAxeDmg) + Math.max(0, currPlayerArrDmg);
+        currPlayer.health -= Math.max(0, currPlayerDmg);
+        console.log(currPlayerArrDmg);
+
+        if (currPlayer.health <= 0) {
+            const winner = await this.win(otherPlayer);
+            return true;
+        }
+        return false;
+    };
+
+    async win(winner) {
+        console.log(`\n\n${winner.name} wins!\n\n`)
+        const res = await inquirer
+            .prompt({
+                type: "confirm",
+                name: "toRestart",
+                message: "Play again?",
+                default: false
+            });
+        if (res.toRestart) {
+            for (let player of this.players) {
+                player.health = 10;
+                player.godPoints = 0;
+            }
+        }
+        console.log(this.players);
+        return winner;
+    }
+
+    async resolve() {
         let currPlayer = this.players[this.currPlayerIndex];
         let currPlayerDice = currPlayer.dices.map(dice => dice.currFace);
         let currPlayerAddGP = currPlayer.dices.filter(dice => dice.goldCurrFace).length;
@@ -25,11 +70,10 @@ class Round {
         let otherPlayerAddGP = otherPlayer.dices.filter(dice => dice.goldCurrFace).length;
         otherPlayer.godPoints += otherPlayerAddGP;
 
-
         console.log(`${currPlayer.name} has\n${currPlayerDice}\nand gains ${currPlayerAddGP} god points.\n\n${otherPlayer.name} has\n${otherPlayerDice}\nand gains ${otherPlayerAddGP} god points`);
-
-        // damage calculation
+        return await this.resolveHealth(currPlayer, currPlayerDice, otherPlayer, otherPlayerDice);
     }
+
 
     async playMatch() {
         for (let player of this.players) {
@@ -38,6 +82,7 @@ class Round {
             }
         }
 
+        //switch from player to player until etiher all dice locked, or 3rd roll
         for (let turn = 1; turn <= 6; turn++) {
             console.log("\nturn", turn);
             let currPlayer = this.players[this.currPlayerIndex]
@@ -52,12 +97,12 @@ class Round {
             const lockedDiceNames = lockedDice.map((dice, i) => {
                 return dice.currFace + (dice.goldCurrFace ? " - G" : "")
             })
-            console.log("lockeddicenames", lockedDiceNames);
 
             if (turn >= 5) {
                 //final turns for players
                 currPlayer.dices.forEach(dice => dice.locked = true)
             } else {
+                // player chooses dice to lock, they get locked
                 await this.playerLockDices(currPlayer.name, currDiceNames, lockedDiceNames)
                     .then(({ diceToLock }) => {
                         diceToLock.forEach(diceName => {
@@ -75,8 +120,9 @@ class Round {
 
             this.switchTurn();
         }
-        this.resolve();
+        const result = await this.resolve();
         this.switchTurn();
+        return result;
     }
 
     playerLockDices(name, currDice, lockedDice) {
